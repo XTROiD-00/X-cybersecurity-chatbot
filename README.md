@@ -10,6 +10,7 @@ features
 
 How to use XTROiD
 -enter your name when prompted after greeting
-- the chatbot will bring out previous searches and most searched depending onyour username
-- ask a cybersecurity related questionor message to get a response
+-click enter twice to continue
+- the chatbot will bring out previous searches and most searched depending on your username
+- ask a cybersecurity related question or message to get a response
 - type exit when done 
