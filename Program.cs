@@ -1,157 +1,280 @@
-﻿using System.Collections;
 using System;
+using System.Collections.Generic;
+using System.Drawing;
+using System.IO;
+using System.Media;
+using System.Text;
 
-namespace split
+namespace CyberSecurityChatbot
 {
-    public class split_function
+    class Program
     {
-        private ArrayList reply = new ArrayList(); // List of predefined chatbot responses
-        private ArrayList ignores = new ArrayList(); // List of words to ignore in user input
+        const string MemoryFile = "memory.txt";
 
-        // Constructor to initialize responses and ignored words
-        public split_function()
+        static void Main(string[] args)
         {
-            store_replies(); // Store the predefined chatbot responses
-            store_ignore();  // Store the words to ignore in the input
-        }
+            DisplayAsciiLogo("poeimg.jpg");
+            PlayVoiceGreeting("audiosamp.wav");
 
-        // Method to process the user's question and generate a response
-        public void ProcessQuestion(string question)
-        {
-            // Split the question into words
-            string[] store_word = question.Split(' ');
-            ArrayList filter = new ArrayList();
+            string userName = "";
+            string lastQuestion = "";
 
-            // Filter out the words that should be ignored
-            foreach (string word in store_word)
+            if (File.Exists(MemoryFile))
             {
-                if (!ignores.Contains(word))
+                string[] memory = File.ReadAllLines(MemoryFile);
+                if (memory.Length >= 2)
                 {
-                    filter.Add(word);
+                    userName = memory[0];
+                    lastQuestion = memory[1];
+                    Console.ForegroundColor = ConsoleColor.Cyan;
+                    Console.WriteLine($"Welcome back, {userName}!");
+                    Console.WriteLine($"Last time you asked: \"{lastQuestion}\"\n");
+                    Console.ResetColor();
                 }
             }
 
-            string message = ""; // Store the chatbot's response
-            bool found = false; // Flag to track if a response was found
-
-            // Check if any of the filtered words match the predefined responses
-            foreach (string word in filter)
+            if (string.IsNullOrWhiteSpace(userName))
             {
-                foreach (string response in reply)
+                Console.Write("What is your name? ");
+                userName = Console.ReadLine()?.Trim();
+                while (string.IsNullOrEmpty(userName))
                 {
-                    // If the response contains the word, add it to the message
-                    if (response.ToLower().Contains(word))
+                    Console.Write("Please enter a valid name: ");
+                    userName = Console.ReadLine()?.Trim();
+                }
+            }
+
+            DisplayWelcomeMessage(userName);
+            Console.WriteLine($"\n_X_ > hey {userName}, click any key to continue");
+            Console.ReadKey();
+            Console.Write($"{userName} > ");
+            Console.ReadLine();
+
+            Console.WriteLine("_X_ > OK, Let's get to it...\n");
+
+            var chatbot = new SplitFunction();
+            RunChatbot(chatbot, userName);
+        }
+
+        static void RunChatbot(SplitFunction chatbot, string userName)
+        {
+            while (true)
+            {
+                Console.ForegroundColor = ConsoleColor.Blue;
+                Console.Write("\n -X- => ");
+                Console.ResetColor();
+                Console.Write("got any questions on cybersecurity? Type 'exit' to leave.\n");
+                Console.Write($"{userName} => ");
+                string userInput = Console.ReadLine()?.Trim();
+                if (string.IsNullOrWhiteSpace(userInput)) continue;
+
+                if (userInput.ToLower() == "exit")
+                {
+                    Console.WriteLine($"\nGoodbye {userName}! Stay safe online.");
+                    break;
+                }
+
+                // Update memory
+                File.WriteAllLines(MemoryFile, new[] { userName, userInput });
+
+                chatbot.ProcessQuestion(userInput.ToLower());
+            }
+        }
+
+        static void DisplayAsciiLogo(string imagePath)
+        {
+            if (File.Exists(imagePath))
+            {
+                Bitmap image = new Bitmap(imagePath);
+                int width = 80;
+                int height = 40;
+                Bitmap resized = new Bitmap(image, new Size(width, height));
+                Console.WriteLine(ConvertImageToAscii(resized));
+                Console.ForegroundColor = ConsoleColor.Green;
+                Console.WriteLine("\n Welcome to -X- Cybersecurity Assistant ChatBot.");
+                Console.WriteLine(" Ask me about phishing, malware, strong passwords, and more!\n");
+                Console.ResetColor();
+            }
+            else Console.WriteLine("[Error] ASCII logo image not found!");
+        }
+
+        static string ConvertImageToAscii(Bitmap image)
+        {
+            StringBuilder result = new StringBuilder();
+            string chars = "@#$%*-";
+            for (int y = 0; y < image.Height; y++)
+            {
+                for (int x = 0; x < image.Width; x++)
+                {
+                    Color color = image.GetPixel(x, y);
+                    int gray = (int)(0.2126 * color.R + 0.7152 * color.G + 0.0722 * color.B);
+                    int index = gray * (chars.Length - 1) / 255;
+                    result.Append(chars[index]);
+                }
+                result.AppendLine();
+            }
+            return result.ToString();
+        }
+
+        static void PlayVoiceGreeting(string fileName)
+        {
+            string path = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, fileName);
+            if (File.Exists(path))
+            {
+                try
+                {
+                    using (SoundPlayer player = new SoundPlayer(path))
                     {
-                        found = true; // Mark that a response was found
-                        message += response + "\n"; // Add the response to the message
+                        player.PlaySync();
                     }
                 }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[Error] Unable to play audio: {ex.Message}");
+                }
             }
+            else Console.WriteLine("[Error] Audio file not found!");
+        }
+
+        static void DisplayWelcomeMessage(string userName)
+        {
+            Console.ForegroundColor = ConsoleColor.Green;
+            Console.WriteLine($"\nWelcome, {userName}! I am -X-, your cybersecurity assistant.");
+            Console.WriteLine("I'm here to help you stay safe online.\n");
+            Console.ResetColor();
+        }
+    }
+
+    class SplitFunction
+    {
+        private Dictionary<string, List<string>> topics = new Dictionary<string, List<string>>();
+        private List<string> ignores = new List<string>();
+        private Dictionary<string, string> sentiments = new Dictionary<string, string>();
+        private Random rand = new Random();
+
+        public SplitFunction()
+        {
+            StoreReplies();
+            StoreIgnoreWords();
+            StoreSentiments();
+        }
+
+        public void ProcessQuestion(string input)
+        {
+            string sentimentMsg = null;
+            string topicMsg = null;
+
+            foreach (var pair in sentiments)
+                if (input.Contains(pair.Key)) { sentimentMsg = pair.Value; break; }
+
+            List<string> filteredWords = new List<string>();
+            foreach (string word in input.Split(' '))
+                if (!ignores.Contains(word)) filteredWords.Add(word);
+
+            foreach (string word in filteredWords)
+                if (topics.ContainsKey(word))
+                {
+                    var responses = topics[word];
+                    topicMsg = responses[rand.Next(responses.Count)];
+                    break;
+                }
 
             Console.ForegroundColor = ConsoleColor.Yellow;
-            // Provide specific responses for certain questions
-            if (question.Contains("how are you"))
-            {
-                // Special response for "How are you?" question
+            if (sentimentMsg != null && topicMsg != null)
+                Console.WriteLine($"\n -X- => {sentimentMsg} {topicMsg}");
+            else if (sentimentMsg != null)
+                Console.WriteLine($"\n -X- => {sentimentMsg}");
+            else if (topicMsg != null)
+                Console.WriteLine($"\n -X- => {topicMsg}");
+            else if (input.Contains("how are you"))
                 Console.WriteLine("I'm just a bot, but I'm running securely! Thanks for asking.");
-            }
-            else if (question.Contains("what’s your purpose?") || question.Contains("what is your purpose?"))
-            {
-                // Special response for "What is your purpose?" question
-                Console.WriteLine("My purpose is to educate you about cybersecurity and help you stay safe online.");
-            }
+            else if (input.Contains("purpose"))
+                Console.WriteLine("I'm here to teach you about cybersecurity and protect you online.");
+            else if (input.Contains("what can i ask"))
+                Console.WriteLine("Ask me about phishing, malware, browsing safely, passwords, MFA, and more.");
             else
+                Console.WriteLine("Sorry, could you rephrase or ask a cybersecurity question?");
+            Console.ResetColor();
+        }
+
+private void StoreReplies()
+{
+            topics["phishing"] = new List<string>
+    {
+        "• Phishing is a deceptive tactic where attackers impersonate legitimate institutions via email or messages to trick you into revealing sensitive information like passwords or credit card numbers. Always double-check the sender's address and avoid clicking suspicious links.",
+        "• Many phishing scams use urgent or emotional language to trick users into acting quickly. If an email claims your account will be locked or you're entitled to a reward, stop and verify it directly through the company’s official website.",
+        "• One of the best ways to avoid phishing attacks is to never provide personal information through email. Banks and legitimate companies will never ask for passwords or login details via email."
+    };
+
+            topics["malware"] = new List<string>
+    {
+        "• Malware is software intentionally designed to cause damage to devices, steal data, or gain unauthorized access. It includes viruses, worms, Trojans, and ransomware. Regularly update your software and avoid downloading files from unknown sources.",
+        "• To protect yourself from malware, install a reliable antivirus program and enable real-time protection. Also, be cautious about clicking on pop-ups and never open unexpected email attachments.",
+        "• Some malware can operate silently in the background, collecting your keystrokes or files. Running regular scans and monitoring your system performance can help detect and remove such threats."
+    };
+
+    topics["passwords"] = new List<string>
+    {
+        "• Creating a strong password involves using a mix of uppercase and lowercase letters, numbers, and special characters. Avoid using personal details like birthdays or pet names, as these can be easily guessed.",
+        "• Don’t reuse passwords across multiple accounts. If one site is breached, hackers can try the same credentials elsewhere. Consider using a password manager to securely store and generate unique passwords for each site.",
+        "• Updating your passwords regularly reduces the risk of unauthorized access. Make it a habit to change critical passwords like those for your email or banking every few months."
+    };
+
+    topics["mfa"] = new List<string>
+    {
+        "• Multi-Factor Authentication (MFA) adds an extra layer of security by requiring you to provide something beyond your password — like a code from your phone or a fingerprint scan. It's one of the best ways to protect your accounts.",
+        "• Even if someone steals your password, MFA can prevent unauthorized access by asking for a second factor only you have. Enabling MFA on your accounts makes it significantly harder for hackers to get in.",
+        "• Use MFA wherever possible — especially on sensitive accounts like your email, financial apps, and cloud storage. It takes just a few seconds but drastically increases your security."
+    };
+
+    topics["browsing"] = new List<string>
+    {
+        "• Safe browsing means being mindful of the websites you visit and the links you click. Avoid clicking on pop-ups, don’t download random files, and always check the URL to make sure it's secure (look for HTTPS).",
+        "• Many websites track your activity to show ads or gather data. Use privacy-focused browsers like Brave or Firefox and consider installing ad blockers or tracker blockers to enhance your privacy.",
+        "• Public Wi-Fi networks can be risky — avoid logging into personal accounts while on them, and use a VPN if you need to access sensitive data over an open network."
+    };
+
+    topics["ddos"] = new List<string>
+    {
+        "• A Distributed Denial-of-Service (DDoS) attack floods a server with so much traffic that it becomes unavailable to users. These attacks are often launched using botnets — networks of infected devices controlled by attackers.",
+        "• While individuals aren’t usually targeted by DDoS, it’s important to understand that websites and online services can go down because of them. Businesses often use special firewalls and load balancers to help defend against such attacks.",
+        "• If you're managing a site or service, consider working with your hosting provider to implement DDoS protection. Being prepared in advance can minimize disruption if you are targeted."
+    };
+
+    topics["encryption"] = new List<string>
+    {
+        "• Encryption is a method of converting information into a code to prevent unauthorized access. It protects your messages, files, and transactions online from being read by hackers or third parties.",
+        "• End-to-end encryption ensures that only the sender and receiver can read a message. Services like WhatsApp and Signal use this technology to keep your conversations private, even from the service providers.",
+        "• Always look for HTTPS in the address bar of websites — the 'S' means your connection is encrypted and secure. Avoid entering sensitive information on sites without it."
+    };
+
+    topics["privacy"] = new List<string>
+    {
+        "• Online privacy involves controlling what personal information you share and with whom. Review your social media privacy settings to make sure only trusted people can see your posts.",
+        "• Be cautious about apps and websites asking for access to your location, camera, or contacts. Only grant permissions when absolutely necessary and uninstall apps you no longer use.",
+        "• Consider using tools like privacy-focused browsers, search engines like DuckDuckGo, and browser extensions that block trackers to help reduce digital footprints."
+    };
+}
+
+        private void StoreIgnoreWords()
+        {
+            ignores.AddRange(new string[]
             {
-                // If no specific response was found, print a default message
-                Console.WriteLine(found ? message : "Write something related to cybersecurity.");
-            }
-            Console.ForegroundColor = ConsoleColor.White; // Reset the console color after printing the response
+                "the", "is", "a", "an", "of", "on", "at", "to", "and", "or", "but", "in",
+                "about", "with", "as", "by", "for", "if", "can", "i", "you", "we", "they",
+                "are", "was", "were", "have", "has", "do", "does", "did", "how", "what",
+                "who", "when", "where", "why", "which", "it", "this", "that", "these",
+                "those", "any", "some", "just", "more", "less", "also", "only", "tell", "me", "please"
+            });
         }
 
-        // Method to store predefined chatbot responses
-        private void store_replies()
+        private void StoreSentiments()
         {
-            // Full, detailed responses for various cybersecurity-related topics
-            reply.Add("• Cybersecurity is a comprehensive practice dedicated to safeguarding systems, networks, and programs from the growing number of digital attacks. These attacks can range from unauthorized data access and malware infections to more sophisticated threats like ransomware. Effective cybersecurity involves various strategies, tools, and processes designed to protect both the integrity and confidentiality of data, as well as ensuring the availability of services in the face of potential threats. It is a crucial component in both personal and organizational digital safety, as cybercriminals continuously evolve their tactics.");
-            reply.Add("• Phishing is a deceptive cyberattack method where attackers attempt to trick individuals into divulging sensitive information, such as usernames, passwords, or credit card details, by masquerading as trustworthy sources. These attacks typically occur through emails, social media, or even text messages, with attackers creating fake websites or messages that closely resemble legitimate ones. Phishing scams often prey on individuals' trust or fear, urging them to act quickly or providing a sense of urgency, making it vital for people to be cautious when handling unsolicited communication.");
-            reply.Add("• A strong password is essential for protecting your online accounts and personal information. It should be long, typically at least 12 characters, and contain a mix of uppercase and lowercase letters, numbers, and special characters. This complexity makes it much harder for attackers to crack using brute-force methods. Avoid using common words, phrases, or easily guessable information, such as your name or birthdate. Additionally, using unique passwords for each account ensures that a breach in one does not compromise all your other accounts.");
-            reply.Add("• Multi-factor authentication (MFA) adds an important extra layer of security to your online accounts. Instead of relying solely on a password, MFA requires users to provide multiple forms of verification to confirm their identity. These can include something you know (like a password), something you have (like a smartphone or hardware token), or something you are (such as a fingerprint or facial recognition). By requiring more than just a password, MFA significantly reduces the likelihood of unauthorized access even if a password is compromised.");
-            reply.Add("• Malware, short for malicious software, refers to any software specifically designed to harm, exploit, or disrupt computer systems and networks. It includes a wide range of threats such as viruses, worms, Trojans, ransomware, and spyware. Malware can be used to steal sensitive information, damage or delete files, take control of systems, or even hold data hostage for ransom.");
-            reply.Add("• Safe browsing is a set of practices and habits designed to protect users while navigating the internet. It involves staying cautious about the websites you visit, the links you click, and the personal information you share online. To ensure safe browsing, always check for the presence of HTTPS in the website's URL, which indicates a secure connection. Be wary of suspicious websites, particularly those that look unprofessional, contain unusual pop-ups, or ask for sensitive information without proper justification.");
-            reply.Add("• A Denial-of-Service (DoS) attack is a type of cyberattack where attackers attempt to make a system, service, or network unavailable by overwhelming it with a flood of internet traffic. In a Distributed Denial-of-Service (DDoS) attack, the traffic comes from multiple sources, making it even harder to stop. These attacks can cause websites or services to become slow or unresponsive, potentially leading to significant financial loss for organizations. DoS attacks can be launched for various reasons, including political motives, competitive sabotage, or simply for the thrill of disruption.");
-            reply.Add("• A zero-day attack occurs when a cybercriminal exploits a previously unknown vulnerability in software or hardware. Because the vulnerability is not yet recognized by the vendor or security community, there are no patches or defenses available to mitigate the attack. Zero-day vulnerabilities are highly valuable on the black market, as they can provide attackers with undetected access to systems. Regular software updates and patch management can help mitigate the risk of zero-day attacks.");
-            reply.Add("• A Man-in-the-Middle (MITM) attack occurs when a cybercriminal intercepts and potentially alters the communication between two parties who believe they are directly communicating with each other. MITM attacks often occur on unsecured public Wi-Fi networks, where attackers can capture and manipulate data being sent between users and websites. This could include stealing login credentials, injecting malicious code, or redirecting users to fake websites. Using encryption (e.g., HTTPS) and VPNs can help protect against MITM attacks.");
-        }
-
-        // Method to store words that should be ignored in the input
-        private void store_ignore()
-        {
-            ignores.Add("tell"); ignores.Add("how");
-            ignores.Add("me"); ignores.Add("a");
-            ignores.Add("about"); ignores.Add("and");
-            ignores.Add("is"); ignores.Add("what");
-            ignores.Add("or"); ignores.Add("when");
-            ignores.Add("an"); ignores.Add("you");
-            ignores.Add("by"); ignores.Add("of");
-            ignores.Add("can"); ignores.Add("i");
-            ignores.Add("if"); ignores.Add("possible");
-            ignores.Add("what's"); ignores.Add("possibility");
-            ignores.Add("possibilities"); ignores.Add("are");
-            ignores.Add("the"); ignores.Add("they");
-            ignores.Add("them"); ignores.Add("there");
-            ignores.Add("then"); ignores.Add("car");
-            ignores.Add("but"); ignores.Add("so");
-            ignores.Add("with"); ignores.Add("without");
-            ignores.Add("for"); ignores.Add("in");
-            ignores.Add("on"); ignores.Add("at");
-            ignores.Add("to"); ignores.Add("from");
-            ignores.Add("as"); ignores.Add("that");
-            ignores.Add("which"); ignores.Add("who");
-            ignores.Add("whom"); ignores.Add("this");
-            ignores.Add("these"); ignores.Add("those");
-            ignores.Add("where"); ignores.Add("why");
-            ignores.Add("yes"); ignores.Add("no");
-            ignores.Add("not"); ignores.Add("will");
-            ignores.Add("do"); ignores.Add("was");
-            ignores.Add("were"); ignores.Add("be");
-            ignores.Add("been"); ignores.Add("being");
-            ignores.Add("have"); ignores.Add("has");
-            ignores.Add("had"); ignores.Add("having");
-            ignores.Add("it"); ignores.Add("its");
-            ignores.Add("my"); ignores.Add("your");
-            ignores.Add("his"); ignores.Add("her");
-            ignores.Add("their"); ignores.Add("our");
-            ignores.Add("we"); ignores.Add("you");
-            ignores.Add("us"); ignores.Add("one");
-            ignores.Add("two"); ignores.Add("three");
-            ignores.Add("four"); ignores.Add("five");
-            ignores.Add("first"); ignores.Add("second");
-            ignores.Add("third"); ignores.Add("last");
-            ignores.Add("next"); ignores.Add("previous");
-            ignores.Add("only"); ignores.Add("some");
-            ignores.Add("all"); ignores.Add("few");
-            ignores.Add("many"); ignores.Add("much");
-            ignores.Add("more"); ignores.Add("less");
-            ignores.Add("least"); ignores.Add("most");
-            ignores.Add("several"); ignores.Add("each");
-            ignores.Add("every"); ignores.Add("another");
-            ignores.Add("any"); ignores.Add("none");
-            ignores.Add("such"); ignores.Add("either");
-            ignores.Add("neither"); ignores.Add("both");
-            ignores.Add("ten"); ignores.Add("hundred");
-            ignores.Add("thousand"); ignores.Add("million");
-            ignores.Add("billion"); ignores.Add("year");
-            ignores.Add("month"); ignores.Add("day");
-            ignores.Add("hour"); ignores.Add("minute");
-            ignores.Add("second"); ignores.Add("now");
-            ignores.Add("soon"); ignores.Add("later");
-            ignores.Add("yesterday"); ignores.Add("today");
-            ignores.Add("tomorrow"); ignores.Add("always");
-            ignores.Add("usually"); ignores.Add("sometimes");
-            ignores.Add("rarely"); ignores.Add("never");
-
-
-
+            sentiments["worried"] = "It's okay to feel that way. Let's boost your security together.";
+            sentiments["frustrated"] = "Frustration is valid — I'll keep it simple.";
+            sentiments["curious"] = "Curiosity is good! Let's explore.";
+            sentiments["confused"] = "Let’s clarify that for you.";
+            sentiments["anxious"] = "No stress. I’m here to guide you.";
         }
     }
 }
