@@ -45,7 +45,7 @@ namespace CyberSecurityChatbot
             }
 
             DisplayWelcomeMessage(userName);
-            Console.WriteLine($"\n_X_ > hey {userName}, click any key to continue");
+            Console.WriteLine($"\n_X_ > hey {userName}, click enter twice to continue");
             Console.ReadKey();
             Console.Write($"{userName} > ");
             Console.ReadLine();
