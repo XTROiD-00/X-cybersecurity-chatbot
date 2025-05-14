@@ -9,16 +9,17 @@ namespace CyberSecurityChatbot
 {
     class Program
     {
-        const string MemoryFile = "memory.txt";
+        const string MemoryFile = "memory.txt"; // File to store user name and last question
 
         static void Main(string[] args)
         {
-            DisplayAsciiLogo("poeimg.jpg");
-            PlayVoiceGreeting("audiosamp.wav");
+            DisplayAsciiLogo("poeimg.jpg"); // Display ASCII logo converted from image
+            PlayVoiceGreeting("audiosamp.wav"); // Play welcome audio
 
             string userName = "";
             string lastQuestion = "";
 
+            // Load user memory if exists
             if (File.Exists(MemoryFile))
             {
                 string[] memory = File.ReadAllLines(MemoryFile);
@@ -33,6 +34,7 @@ namespace CyberSecurityChatbot
                 }
             }
 
+            // Prompt for name if not stored
             if (string.IsNullOrWhiteSpace(userName))
             {
                 Console.Write("What is your name? ");
@@ -52,10 +54,11 @@ namespace CyberSecurityChatbot
 
             Console.WriteLine("_X_ > OK, Let's get to it...\n");
 
-            var chatbot = new SplitFunction();
-            RunChatbot(chatbot, userName);
+            var chatbot = new SplitFunction(); // Initialize chatbot logic class
+            RunChatbot(chatbot, userName);     // Start chatbot interaction
         }
 
+        // Main chat loop
         static void RunChatbot(SplitFunction chatbot, string userName)
         {
             while (true)
@@ -74,13 +77,15 @@ namespace CyberSecurityChatbot
                     break;
                 }
 
-                // Update memory
+                // Save current user input
                 File.WriteAllLines(MemoryFile, new[] { userName, userInput });
 
+                // Process the user's question
                 chatbot.ProcessQuestion(userInput.ToLower());
             }
         }
 
+        // Display ASCII art from image
         static void DisplayAsciiLogo(string imagePath)
         {
             if (File.Exists(imagePath))
@@ -98,6 +103,7 @@ namespace CyberSecurityChatbot
             else Console.WriteLine("[Error] ASCII logo image not found!");
         }
 
+        // Convert bitmap to ASCII art string
         static string ConvertImageToAscii(Bitmap image)
         {
             StringBuilder result = new StringBuilder();
@@ -116,6 +122,7 @@ namespace CyberSecurityChatbot
             return result.ToString();
         }
 
+        // Play .wav audio file
         static void PlayVoiceGreeting(string fileName)
         {
             string path = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, fileName);
@@ -136,6 +143,7 @@ namespace CyberSecurityChatbot
             else Console.WriteLine("[Error] Audio file not found!");
         }
 
+        // Display greeting message
         static void DisplayWelcomeMessage(string userName)
         {
             Console.ForegroundColor = ConsoleColor.Green;
@@ -145,6 +153,7 @@ namespace CyberSecurityChatbot
         }
     }
 
+    // Core chatbot logic
     class SplitFunction
     {
         private Dictionary<string, List<string>> topics = new Dictionary<string, List<string>>();
@@ -152,6 +161,7 @@ namespace CyberSecurityChatbot
         private Dictionary<string, string> sentiments = new Dictionary<string, string>();
         private Random rand = new Random();
 
+        // Constructor to initialize replies and keyword sets
         public SplitFunction()
         {
             StoreReplies();
@@ -159,18 +169,22 @@ namespace CyberSecurityChatbot
             StoreSentiments();
         }
 
+        // Analyze and respond to input
         public void ProcessQuestion(string input)
         {
             string sentimentMsg = null;
             string topicMsg = null;
 
+            // Detect sentiment keywords
             foreach (var pair in sentiments)
                 if (input.Contains(pair.Key)) { sentimentMsg = pair.Value; break; }
 
+            // Remove common/ignored words
             List<string> filteredWords = new List<string>();
             foreach (string word in input.Split(' '))
                 if (!ignores.Contains(word)) filteredWords.Add(word);
 
+            // Match input with known topic keywords
             foreach (string word in filteredWords)
                 if (topics.ContainsKey(word))
                 {
@@ -179,6 +193,7 @@ namespace CyberSecurityChatbot
                     break;
                 }
 
+            // Provide appropriate response
             Console.ForegroundColor = ConsoleColor.Yellow;
             if (sentimentMsg != null && topicMsg != null)
                 Console.WriteLine($"\n -X- => {sentimentMsg} {topicMsg}");
@@ -197,65 +212,68 @@ namespace CyberSecurityChatbot
             Console.ResetColor();
         }
 
-private void StoreReplies()
-{
+        // Populate cybersecurity topic replies
+        private void StoreReplies()
+        {
+            // Each keyword has a list of possible replies
             topics["phishing"] = new List<string>
-    {
-        "• Phishing is a deceptive tactic where attackers impersonate legitimate institutions via email or messages to trick you into revealing sensitive information like passwords or credit card numbers. Always double-check the sender's address and avoid clicking suspicious links.",
-        "• Many phishing scams use urgent or emotional language to trick users into acting quickly. If an email claims your account will be locked or you're entitled to a reward, stop and verify it directly through the company’s official website.",
-        "• One of the best ways to avoid phishing attacks is to never provide personal information through email. Banks and legitimate companies will never ask for passwords or login details via email."
-    };
+            {
+                "• Phishing is a deceptive tactic where attackers impersonate legitimate institutions...",
+                "• Many phishing scams use urgent or emotional language...",
+                "• One of the best ways to avoid phishing attacks is to never provide personal information..."
+            };
 
             topics["malware"] = new List<string>
-    {
-        "• Malware is software intentionally designed to cause damage to devices, steal data, or gain unauthorized access. It includes viruses, worms, Trojans, and ransomware. Regularly update your software and avoid downloading files from unknown sources.",
-        "• To protect yourself from malware, install a reliable antivirus program and enable real-time protection. Also, be cautious about clicking on pop-ups and never open unexpected email attachments.",
-        "• Some malware can operate silently in the background, collecting your keystrokes or files. Running regular scans and monitoring your system performance can help detect and remove such threats."
-    };
+            {
+                "• Malware is software intentionally designed to cause damage...",
+                "• To protect yourself from malware, install a reliable antivirus...",
+                "• Some malware can operate silently in the background..."
+            };
 
-    topics["passwords"] = new List<string>
-    {
-        "• Creating a strong password involves using a mix of uppercase and lowercase letters, numbers, and special characters. Avoid using personal details like birthdays or pet names, as these can be easily guessed.",
-        "• Don’t reuse passwords across multiple accounts. If one site is breached, hackers can try the same credentials elsewhere. Consider using a password manager to securely store and generate unique passwords for each site.",
-        "• Updating your passwords regularly reduces the risk of unauthorized access. Make it a habit to change critical passwords like those for your email or banking every few months."
-    };
+            topics["passwords"] = new List<string>
+            {
+                "• Creating a strong password involves using a mix...",
+                "• Don’t reuse passwords across multiple accounts...",
+                "• Updating your passwords regularly reduces the risk..."
+            };
 
-    topics["mfa"] = new List<string>
-    {
-        "• Multi-Factor Authentication (MFA) adds an extra layer of security by requiring you to provide something beyond your password — like a code from your phone or a fingerprint scan. It's one of the best ways to protect your accounts.",
-        "• Even if someone steals your password, MFA can prevent unauthorized access by asking for a second factor only you have. Enabling MFA on your accounts makes it significantly harder for hackers to get in.",
-        "• Use MFA wherever possible — especially on sensitive accounts like your email, financial apps, and cloud storage. It takes just a few seconds but drastically increases your security."
-    };
+            topics["mfa"] = new List<string>
+            {
+                "• Multi-Factor Authentication (MFA) adds an extra layer of security...",
+                "• Even if someone steals your password, MFA can prevent access...",
+                "• Use MFA wherever possible — especially on sensitive accounts..."
+            };
 
-    topics["browsing"] = new List<string>
-    {
-        "• Safe browsing means being mindful of the websites you visit and the links you click. Avoid clicking on pop-ups, don’t download random files, and always check the URL to make sure it's secure (look for HTTPS).",
-        "• Many websites track your activity to show ads or gather data. Use privacy-focused browsers like Brave or Firefox and consider installing ad blockers or tracker blockers to enhance your privacy.",
-        "• Public Wi-Fi networks can be risky — avoid logging into personal accounts while on them, and use a VPN if you need to access sensitive data over an open network."
-    };
+            topics["browsing"] = new List<string>
+            {
+                "• Safe browsing means being mindful of the websites you visit...",
+                "• Many websites track your activity...",
+                "• Public Wi-Fi networks can be risky..."
+            };
 
-    topics["ddos"] = new List<string>
-    {
-        "• A Distributed Denial-of-Service (DDoS) attack floods a server with so much traffic that it becomes unavailable to users. These attacks are often launched using botnets — networks of infected devices controlled by attackers.",
-        "• While individuals aren’t usually targeted by DDoS, it’s important to understand that websites and online services can go down because of them. Businesses often use special firewalls and load balancers to help defend against such attacks.",
-        "• If you're managing a site or service, consider working with your hosting provider to implement DDoS protection. Being prepared in advance can minimize disruption if you are targeted."
-    };
+            topics["ddos"] = new List<string>
+            {
+                "• A Distributed Denial-of-Service (DDoS) attack floods a server...",
+                "• While individuals aren’t usually targeted by DDoS...",
+                "• If you're managing a site, consider DDoS protection..."
+            };
 
-    topics["encryption"] = new List<string>
-    {
-        "• Encryption is a method of converting information into a code to prevent unauthorized access. It protects your messages, files, and transactions online from being read by hackers or third parties.",
-        "• End-to-end encryption ensures that only the sender and receiver can read a message. Services like WhatsApp and Signal use this technology to keep your conversations private, even from the service providers.",
-        "• Always look for HTTPS in the address bar of websites — the 'S' means your connection is encrypted and secure. Avoid entering sensitive information on sites without it."
-    };
+            topics["encryption"] = new List<string>
+            {
+                "• Encryption is a method of converting information into a code...",
+                "• End-to-end encryption ensures only sender and receiver can read...",
+                "• Always look for HTTPS in the address bar..."
+            };
 
-    topics["privacy"] = new List<string>
-    {
-        "• Online privacy involves controlling what personal information you share and with whom. Review your social media privacy settings to make sure only trusted people can see your posts.",
-        "• Be cautious about apps and websites asking for access to your location, camera, or contacts. Only grant permissions when absolutely necessary and uninstall apps you no longer use.",
-        "• Consider using tools like privacy-focused browsers, search engines like DuckDuckGo, and browser extensions that block trackers to help reduce digital footprints."
-    };
-}
+            topics["privacy"] = new List<string>
+            {
+                "• Online privacy involves controlling what you share...",
+                "• Be cautious about apps asking for access...",
+                "• Consider using privacy-focused tools..."
+            };
+        }
 
+        // Define ignored common words
         private void StoreIgnoreWords()
         {
             ignores.AddRange(new string[]
@@ -268,6 +286,7 @@ private void StoreReplies()
             });
         }
 
+        // Define words that indicate sentiment
         private void StoreSentiments()
         {
             sentiments["worried"] = "It's okay to feel that way. Let's boost your security together.";
